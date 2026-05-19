@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>011 · Password Sculptor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0c0c0e;
+      --surface:   #13131a;
+      --border:    #222230;
+      --muted:     #3a3a50;
+      --text:      #c8c8d8;
+      --text-dim:  #5a5a72;
+      --accent:    #e8ff47;
+      --accent-dim:#b0c420;
+      --danger:    #ff4757;
+      --mono:      'JetBrains Mono', monospace;
+      --display:   'Syne', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100dvh;
+    }
+
+    /* ── NAV BAR ── */
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+    }
+    .nav-num {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 0.75rem;
+    }
+    .nav-sep { color: var(--muted); }
+    .nav a {
+      color: var(--text-dim);
+      text-decoration: none;
+      margin-left: auto;
+      transition: color 0.15s;
+    }
+    .nav a:hover { color: var(--accent); }
+
+    /* ── MAIN ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1.25rem;
+      gap: 2rem;
+    }
+
+    .title-block {
+      text-align: center;
+    }
+    .title-block h1 {
+      font-family: var(--display);
+      font-size: clamp(1.6rem, 5vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .title-block p {
+      margin-top: 0.35rem;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ── PASSWORD DISPLAY ── */
+    .pw-wrap {
+      width: 100%;
+      max-width: 680px;
+      position: relative;
+    }
+
+    .pw-display {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1.25rem 5rem 1.25rem 1.25rem;
+      font-family: var(--mono);
+      font-size: clamp(0.9rem, 2.5vw, 1.15rem);
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.06em;
+      line-height: 1.5;
+      word-break: break-all;
+      min-height: 4rem;
+      transition: border-color 0.2s;
+      cursor: default;
+      user-select: all;
+    }
+
+    .pw-display.copied {
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .pw-display.empty {
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    /* strength bar embedded in border */
+    .strength-track {
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      height: 3px;
+      width: 100%;
+      background: var(--border);
+      border-radius: 0 0 4px 4px;
+      overflow: hidden;
+    }
+    .strength-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.35s ease, background 0.35s ease;
+      border-radius: 0 0 4px 4px;
+    }
+
+    /* copy / refresh buttons */
+    .pw-actions {
+      position: absolute;
+      right: 0.6rem;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .icon-btn {
+      background: none;
+      border: 1px solid var(--muted);
+      border-radius: 3px;
+      padding: 0.35rem 0.45rem;
+      cursor: pointer;
+      color: var(--text-dim);
+      transition: border-color 0.15s, color 0.15s, background 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .icon-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .icon-btn:active {
+      background: rgba(232,255,71,0.08);
+    }
+    .icon-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .copy-label {
+      position: absolute;
+      top: -2rem;
+      right: 0;
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+      text-transform: uppercase;
+    }
+    .copy-label.show { opacity: 1; }
+
+    /* strength label */
+    .strength-label {
+      margin-top: 0.5rem;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      display: flex;
+      justify-content: space-between;
+    }
+    .strength-label span:last-child {
+      font-weight: 700;
+      transition: color 0.3s;
+    }
+
+    /* ── CONTROLS ── */
+    .controls {
+      width: 100%;
+      max-width: 680px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 520px) {
+      .controls { grid-template-columns: 1fr; }
+    }
+
+    .control-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1rem 1.1rem;
+    }
+    .control-block.full { grid-column: 1 / -1; }
+
+    .ctrl-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.75rem;
+    }
+
+    /* length slider */
+    .length-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .length-val {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 2.2ch;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type=range] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: var(--muted);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    input[type=range]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+    input[type=range]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+    }
+
+    /* toggles */
+    .toggle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .toggle-row label {
+      font-size: 0.75rem;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle-row .charset {
+      font-size: 0.6rem;
+      color: var(--text-dim);
+      margin-left: 0.3rem;
+    }
+
+    .toggle {
+      position: relative;
+      width: 34px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: var(--muted);
+      border-radius: 9px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--bg);
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .toggle-track { background: var(--accent); }
+    .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
+
+    /* exclude ambiguous */
+    .ambiguous-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.72rem;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+    .ambiguous-row .charset { color: var(--text-dim); font-size: 0.6rem; }
+
+    /* custom checkbox */
+    .check-box {
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--muted);
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s, background 0.15s;
+      flex-shrink: 0;
+    }
+    .check-box svg { width: 10px; height: 10px; stroke: var(--bg); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity 0.15s; }
+    input[type=checkbox]:checked ~ .check-box-wrap .check-box,
+    .check-box.active { border-color: var(--accent); background: var(--accent); }
+    .check-box.active svg { opacity: 1; }
+
+    /* generate button */
+    .gen-btn {
+      width: 100%;
+      max-width: 680px;
+      padding: 0.9rem;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: 4px;
+      font-family: var(--display);
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .gen-btn:hover { background: #f0ff70; }
+    .gen-btn:active { transform: scale(0.99); }
+
+    /* error state */
+    .error-msg {
+      font-size: 0.7rem;
+      color: var(--danger);
+      letter-spacing: 0.06em;
+      min-height: 1rem;
+      text-align: center;
+      width: 100%;
+      max-width: 680px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 0.75rem 1.5rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.62rem;
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-num">011</span>
+  <span class="nav-sep">·</span>
+  <span>PASSWORD SCULPTOR</span>
+  <a href="https://augustineiacopelli.github.io" aria-label="Portfolio home">↖ portfolio</a>
+</nav>
+
+<main>
+  <div class="title-block">
+    <h1>Password Sculptor</h1>
+    <p>Cryptographically strong · Generated locally · Never transmitted</p>
+  </div>
+
+  <div class="pw-wrap">
+    <span class="copy-label" id="copyLabel">Copied!</span>
+    <div class="pw-display empty" id="pwDisplay">Press Generate to sculpt a password</div>
+    <div class="strength-track">
+      <div class="strength-fill" id="strengthFill"></div>
+    </div>
+    <div class="pw-actions">
+      <button class="icon-btn" id="refreshBtn" title="Generate new password" aria-label="Generate new password">
+        <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </button>
+      <button class="icon-btn" id="copyBtn" title="Copy to clipboard" aria-label="Copy to clipboard">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="strength-label" style="width:100%;max-width:680px;">
+    <span>Strength</span>
+    <span id="strengthText">—</span>
+  </div>
+
+  <div class="controls">
+    <!-- Length -->
+    <div class="control-block">
+      <div class="ctrl-label">Length</div>
+      <div class="length-row">
+        <span class="length-val" id="lengthVal">20</span>
+        <input type="range" id="lengthSlider" min="8" max="64" value="20" aria-label="Password length" />
+      </div>
+    </div>
+
+    <!-- Exclude ambiguous -->
+    <div class="control-block" style="display:flex;flex-direction:column;justify-content:center;">
+      <div class="ctrl-label">Options</div>
+      <label class="ambiguous-row" id="ambigLabel">
+        <span class="check-box" id="ambigBox">
+          <svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg>
+        </span>
+        <span>Exclude ambiguous <span class="charset">0 O l I 1</span></span>
+      </label>
+    </div>
+
+    <!-- Character sets -->
+    <div class="control-block full">
+      <div class="ctrl-label">Character Sets</div>
+      <div class="toggle-list">
+        <div class="toggle-row">
+          <label for="tog-upper">Uppercase <span class="charset">A–Z</span></label>
+          <label class="toggle"><input type="checkbox" id="tog-upper" checked /><span class="toggle-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <label for="tog-lower">Lowercase <span class="charset">a–z</span></label>
+          <label class="toggle"><input type="checkbox" id="tog-lower" checked /><span class="toggle-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <label for="tog-num">Numbers <span class="charset">0–9</span></label>
+          <label class="toggle"><input type="checkbox" id="tog-num" checked /><span class="toggle-track"></span></label>
+        </div>
+        <div class="toggle-row">
+          <label for="tog-sym">Symbols <span class="charset">!@#$%^&amp;*</span></label>
+          <label class="toggle"><input type="checkbox" id="tog-sym" checked /><span class="toggle-track"></span></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="error-msg" id="errorMsg" role="alert"></div>
+
+  <button class="gen-btn" id="genBtn">Generate Password</button>
+</main>
+
+<footer>All passwords are generated locally using the Web Crypto API. Nothing leaves your device.</footer>
+
+<script>
+  const UPPER_FULL   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const LOWER_FULL   = 'abcdefghijklmnopqrstuvwxyz';
+  const NUM_FULL     = '0123456789';
+  const SYM_FULL     = '!@#$%^&*()-_=+[]{}|;:,.<>?';
+  const AMBIGUOUS    = new Set([...'0Ol1I']);
+
+  const el = id => document.getElementById(id);
+
+  const lengthSlider = el('lengthSlider');
+  const lengthVal    = el('lengthVal');
+  const pwDisplay    = el('pwDisplay');
+  const strengthFill = el('strengthFill');
+  const strengthText = el('strengthText');
+  const copyLabel    = el('copyLabel');
+  const errorMsg     = el('errorMsg');
+  const ambigBox     = el('ambigBox');
+
+  let excludeAmbig = false;
+  let currentPw    = '';
+
+  // ── LENGTH SLIDER ──
+  lengthSlider.addEventListener('input', () => {
+    lengthVal.textContent = lengthSlider.value;
+    if (currentPw) generate();
+  });
+
+  // ── AMBIGUOUS TOGGLE ──
+  ambigBox.addEventListener('click', () => {
+    excludeAmbig = !excludeAmbig;
+    ambigBox.classList.toggle('active', excludeAmbig);
+    if (currentPw) generate();
+  });
+
+  // ── CHARACTER SET TOGGLES ──
+  ['tog-upper','tog-lower','tog-num','tog-sym'].forEach(id => {
+    el(id).addEventListener('change', () => { if (currentPw) generate(); });
+  });
+
+  // ── GENERATE ──
+  function buildCharset() {
+    let chars = '';
+    if (el('tog-upper').checked) chars += UPPER_FULL;
+    if (el('tog-lower').checked) chars += LOWER_FULL;
+    if (el('tog-num').checked)   chars += NUM_FULL;
+    if (el('tog-sym').checked)   chars += SYM_FULL;
+    if (excludeAmbig) chars = [...chars].filter(c => !AMBIGUOUS.has(c)).join('');
+    return chars;
+  }
+
+  function cryptoRandInt(max) {
+    const buf = new Uint32Array(1);
+    let result;
+    do {
+      crypto.getRandomValues(buf);
+      result = buf[0];
+    } while (result >= Math.floor(0xFFFFFFFF / max) * max);
+    return result % max;
+  }
+
+  function generate() {
+    errorMsg.textContent = '';
+    const charset = buildCharset();
+    const len = parseInt(lengthSlider.value);
+
+    if (!charset.length) {
+      errorMsg.textContent = 'Select at least one character set.';
+      pwDisplay.textContent = '';
+      pwDisplay.classList.add('empty');
+      currentPw = '';
+      updateStrength('', 0);
+      return;
+    }
+
+    // Guarantee at least one char from each active set
+    const required = [];
+    if (el('tog-upper').checked) {
+      const pool = excludeAmbig ? [...UPPER_FULL].filter(c => !AMBIGUOUS.has(c)).join('') : UPPER_FULL;
+      if (pool) required.push(pool[cryptoRandInt(pool.length)]);
+    }
+    if (el('tog-lower').checked) {
+      const pool = excludeAmbig ? [...LOWER_FULL].filter(c => !AMBIGUOUS.has(c)).join('') : LOWER_FULL;
+      if (pool) required.push(pool[cryptoRandInt(pool.length)]);
+    }
+    if (el('tog-num').checked) {
+      const pool = excludeAmbig ? [...NUM_FULL].filter(c => !AMBIGUOUS.has(c)).join('') : NUM_FULL;
+      if (pool) required.push(pool[cryptoRandInt(pool.length)]);
+    }
+    if (el('tog-sym').checked) {
+      required.push(SYM_FULL[cryptoRandInt(SYM_FULL.length)]);
+    }
+
+    const remaining = len - required.length;
+    const pw = [];
+    for (let i = 0; i < remaining; i++) pw.push(charset[cryptoRandInt(charset.length)]);
+
+    // Shuffle required chars into random positions
+    for (const c of required) {
+      const pos = cryptoRandInt(pw.length + 1);
+      pw.splice(pos, 0, c);
+    }
+
+    currentPw = pw.join('');
+    pwDisplay.textContent = currentPw;
+    pwDisplay.classList.remove('empty', 'copied');
+    updateStrength(currentPw, charset.length);
+  }
+
+  function updateStrength(pw, charsetSize) {
+    if (!pw) {
+      strengthFill.style.width = '0%';
+      strengthFill.style.background = 'transparent';
+      strengthText.textContent = '—';
+      strengthText.style.color = 'var(--text-dim)';
+      return;
+    }
+    // Entropy bits = log2(charsetSize^length) = length * log2(charsetSize)
+    const bits = pw.length * Math.log2(Math.max(charsetSize, 2));
+    let label, pct, color;
+    if (bits < 40)       { label = 'Very Weak'; pct = 10; color = '#ff4757'; }
+    else if (bits < 60)  { label = 'Weak';      pct = 28; color = '#ff6b35'; }
+    else if (bits < 80)  { label = 'Fair';       pct = 48; color = '#ffa502'; }
+    else if (bits < 100) { label = 'Strong';     pct = 68; color = '#7bed9f'; }
+    else if (bits < 128) { label = 'Very Strong';pct = 84; color = '#2ed573'; }
+    else                 { label = 'Fortress';   pct = 100; color = 'var(--accent)'; }
+
+    strengthFill.style.width  = pct + '%';
+    strengthFill.style.background = color;
+    strengthText.textContent  = `${label} · ${Math.round(bits)} bits`;
+    strengthText.style.color  = color;
+  }
+
+  // ── COPY ──
+  async function copyPassword() {
+    if (!currentPw) return;
+    try {
+      await navigator.clipboard.writeText(currentPw);
+      pwDisplay.classList.add('copied');
+      copyLabel.classList.add('show');
+      setTimeout(() => {
+        copyLabel.classList.remove('show');
+        pwDisplay.classList.remove('copied');
+      }, 1800);
+    } catch {
+      // Fallback
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(pwDisplay);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+
+  el('genBtn').addEventListener('click', generate);
+  el('refreshBtn').addEventListener('click', generate);
+  el('copyBtn').addEventListener('click', copyPassword);
+  pwDisplay.addEventListener('click', copyPassword);
+
+  // Generate on load
+  generate();
+</script>
+</body>
+</html>
